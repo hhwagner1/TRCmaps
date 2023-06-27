@@ -1,0 +1,393 @@
+---
+title: "Map Code"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+# 1. Introduction
+
+## a) Goals
+
+## b) Datasets
+
+Most are downloaded from: https://hub.arcgis.com
+
+Canada Land Inventory (soil): see here for more information about classification: https://www.alc.gov.bc.ca/assets/alc/assets/library/agricultural-capability/canada_land_inventory_soil_capability_classification_for_agriculture_1972.pdf
+
+## c) Load packages
+
+```{r}
+library(sf)
+library(geojsonsf)
+library(leaflet)
+library(here)
+library(tmap)
+library(tibble)
+library(geojsonio)
+library(dplyr)
+```
+
+# 2. Import datasets
+
+## a) Provincial boundaries
+
+```{r}
+Boundaries <- st_read(here::here("Data/canvec_1M_CA_Admin_shp/canvec_1M_CA_Admin/geopolitical_boundary_1.shp"))
+Regions <- st_read(here::here("Data/canvec_1M_CA_Admin_shp/canvec_1M_CA_Admin/geo_political_region_2.shp"))
+```
+
+```{r}
+tmap_mode("view")
+
+tm_shape(Regions %>% filter(bodt_en == "National")) + tm_sf() +
+  tm_shape(Regions %>% filter(juri_en == "Ontario")) + tm_sf(border.col="red")
+```
+## b) Aboriginal Lands Canada
+
+```{r}
+AboriginalLands.sf <- st_read(here::here("Data/Aboriginal_Land_Types_in_Canada/Aboriginal_Lands.shp"))
+AboriginalLands.sf <- st_make_valid(AboriginalLands.sf)
+#AboriginalLands.sf
+
+#AboriginalLands.Lambers.sf <- st_transform(AboriginalLands.sf, 3978)
+#crs_string = "+proj=lcc +lat_1=49 +lat_2=77 +lon_0=-91.52 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
+#AboriginalLands.new.sf <- st_transform(AboriginalLands.sf, crs_string)
+```
+
+
+
+```{r}
+tmap_mode("view")
+Map <- tm_basemap(leaflet::providers$OpenTopoMap, group='Topo')
+
+Map + tm_shape(Regions %>% filter(juri_en == "Ontario")) + 
+        tm_sf(border.col="blue", alpha=0) +
+tm_shape(AboriginalLands.sf %>% filter(JUR1=="ON")) + 
+        tm_sf(col="red", border.col="red") 
+```
+
+## c) Land suitability
+
+```{r}
+Soil.sf <- st_read(here::here("Data/Soil_Survey_Complex/Soil_Survey_Complex.shp"))
+Soil.sf <- st_make_valid(Soil.sf)
+Soil.sf$CLI1 <- factor(Soil.sf$CLI1)
+```
+
+
+## d) Native lands: territories, languages, treaties
+
+Downladed from: https://native-land.ca/resources/api-docs/
+
+Instructions: https://native-land.ca/how-to-add-native-land-digital-data-to-your-own-maps/
+
+Territories:
+
+```{r}
+Territories.sf <- geojson_sf(here::here("Data/indigenousTerritories.json"))
+Drop.id <- c("5ca71dcffa9467840feb51284cecfca5",
+             "1c1e61f0b150f96d5f15cfa3e9654567", 
+             "994bc739f1b34bc2ffff267e57729825",
+             "25716da1cd295e3195ee3cc66dc5b385",
+             "25716da1cd295e3195ee3cc66dc5b385",
+             "417f7cdb164e68d11261e03dbafe28df",
+             "ea7bd2cb60155169501370a0237edf1b",
+             "809d847f81e1ea52852092dd74715eb7",
+             "1cf5ebccbc3066af4d70aefed5f1d9d1",
+             "3850b77372dafc01f1cc8cc05f2484e1")
+Territories.sf <- Territories.sf[!is.element(Territories.sf$id, Drop.id),]
+Territories.sf <- st_make_valid(Territories.sf)
+Territories.sf <- Territories.sf [st_is_valid(Territories.sf),]
+#Territories.Lambers.sf <- st_transform(Territories.sf, 3978)
+```
+
+
+
+
+Languages:
+
+```{r}
+Languages.sf <- geojson_sf(here::here("Data/indigenousLanguages.json"))
+Languages.sf <- st_make_valid(Languages.sf)
+Languages.sf <- Languages.sf [st_is_valid(Languages.sf),]
+Drop.id <- c("278673e8fae9b71f245f619e77beb858",
+             "ffedc97df6f020f684ae00eb61d440e9",
+             "5f2ba1ba09bd1aca608a229fee20b322",
+             "b583d4e5e477a27a553120fbf4fca236",
+             "6db2b3e285bde338be1758abb2886221",
+             "80e4a5bac9ba0290194e63ba7a179cd4")
+Languages.sf <- Languages.sf[!is.element(Languages.sf$id, Drop.id),]
+Languages.sf <- st_make_valid(Languages.sf)
+Languages.sf <- Languages.sf [st_is_valid(Languages.sf),]
+```
+
+Treaties: 
+
+Note: this seems to be incomplete (Robinson-Superior Treaty missing)
+
+```{r}
+Treaties.sf <- geojson_sf(here::here("Data/indigenousTreaties.json"))
+Treaties.sf <- st_make_valid(Treaties.sf)
+Treaties.sf <- Treaties.sf[st_is_valid(Treaties.sf),]
+Drop.id <- c("5a2566f01c88ffc1dbf2576ff1d807e3")
+Treaties.sf <- Treaties.sf[!is.element(Treaties.sf$id, Drop.id),]
+Treaties.sf <- st_make_valid(Treaties.sf)
+Treaties.sf <- Treaties.sf[st_is_valid(Treaties.sf),]
+```
+
+Crop these layers to North America
+
+```{r}
+Bbox <- st_bbox(Treaties.sf)
+Bbox[c(1:4)] <- c(-170,7, -50, 84)
+```
+
+```{r}
+Territories.crop <- st_crop(Territories.sf, Bbox)
+Territories.crop <- st_make_valid(Territories.crop)
+Territories.crop <- Territories.crop[st_is_valid(Territories.crop),]
+
+Languages.crop <- st_crop(Languages.sf, Bbox)
+Languages.crop <- st_make_valid(Languages.crop)
+Languages.crop <- Languages.crop [st_is_valid(Languages.crop),]
+```
+
+Display
+
+
+```{r}
+tmap_mode("view")
+tm_shape(Territories.crop) + tm_sf(col="color", alph=0.3) +
+  tm_shape(Languages.crop) + tm_sf(col="color", alph=0.3) +
+  tm_shape(Treaties.sf) + tm_sf(col="color", alph=0.3) 
+```
+
+
+
+
+
+
+
+## e) Ecoregions
+
+```{r}
+Ecoregions.sf <- st_read(here::here("Data/Level_I_Ecoregions_of_North_America/Ecological_Regions_of_North_America___Level_1.shp"))
+Ecoregions.sf <- st_make_valid(Ecoregions.sf)
+```
+
+## f) Export layers
+
+```{r}
+saveRDS(Territories.sf, here::here("Output/R_objects/Territories.sf.rds"))
+saveRDS(Soil.sf, here::here("Output/R_objects/Soil.sf.rds"))
+saveRDS(AboriginalLands.sf, here::here("Output/R_objects/AboriginalLands.sf.rds"))
+saveRDS(Ecoregions.sf, here::here("Output/R_objects/Ecoregions.sf.rds"))
+
+saveRDS(Treaties.sf, here::here("Output/R_objects/Treaties.sf.rds"))
+saveRDS(Territories.crop, here::here("Output/R_objects/Territories.crop.rds"))
+saveRDS(Languages.crop, here::here("Output/R_objects/Languages.crop.rds"))
+```
+
+Dissolve soil map polygons by attribute CLI1
+
+```{r}
+Soil.dissolved <- Soil.sf %>% group_by(CLI1) %>% summarize()
+Soil.dissolved$CLI1 <- factor(Soil.dissolved$CLI1)
+saveRDS(Soil.dissolved, here::here("Output/R_objects/Soil.dissolved.rds"))
+```
+
+
+
+# 3. Query information for Mississaugas of the Credit
+
+## a) Reserve area
+
+```{r}
+Reserve <- AboriginalLands.sf %>% filter(NAME1=="NEW CREDIT INDIAN RESERVE NO. 40A")
+```
+
+## b) Soil map within reserve
+
+
+```{r}
+#Soil.crop.Reserve <- st_crop(Soil.sf, st_bbox(Reserve))
+```
+
+Get composition of soil types within reserve
+
+```{r}
+#Reserve.intersect <- st_intersection(Reserve, Soil.crop.Reserve)
+Reserve.intersect <- st_intersection(Reserve, Soil.dissolved)
+#Reserve.intersect <- st_make_valid(Reserve.intersect)
+
+#Reserve.intersect$CLI1 <- factor(Reserve.intersect$CLI1, 
+#                                 levels=c("0", "1", "2", "3", "4", "5", "6", "7" ,"O" ,"W"))
+
+Result.Reserve <- data.frame(Reserve.ha = sapply(split(st_area(Reserve.intersect), 
+                        Reserve.intersect$CLI1), sum, na.rm=TRUE)/(100^2))
+
+```
+
+Repeat for traditional territory
+
+```{r}
+Territory <- Territories.sf[grep("Mississaugas of the Credit First Nation", 
+                                      Territories.sf$Name, perl=TRUE),]
+```
+
+Get composition of soil types within territory
+
+```{r}
+#Soil.crop.Territory <- st_crop(Soil.sf, st_bbox(Territory))
+Territory.intersect <- st_intersection(Territory, Soil.dissolved)
+#Territory.intersect <- st_make_valid(Territory.intersect)
+#Territory.intersect$CLI1 <- factor(Territory.intersect$CLI1, 
+#                                 levels=c("0", "1", "2", "3", "4", "5", "6", "7" ,"O" ,"W"))
+
+Result.Territory <- data.frame(Territory.ha = sapply(split(st_area(Territory.intersect), 
+                                             Territory.intersect$CLI1), sum, na.rm=TRUE)/(100^2))
+```
+
+Compare
+
+```{r}
+Result.df <- data.frame(CLI1=row.names(Result.Territory), Result.Territory, Result.Reserve)
+
+Result.df <- Result.df %>% 
+  mutate(Percent.retained = 100 * Reserve.ha/Territory.ha) %>%
+  mutate(Percent.Territory = 100 * Territory.ha/sum(Territory.ha)) %>%
+  mutate(Percent.Reserve = 100 * Reserve.ha/sum(Reserve.ha))
+
+Result.df <- rbind(Result.df, NA)
+Result.df[nrow(Result.df),1] <- "Total"
+Result.df[nrow(Result.df), -1] <- colSums(Result.df[-nrow(Result.df),-1])
+
+Result.df
+```
+```{r}
+Result.df
+```
+
+
+```{r}
+tmap_mode("view")
+tm_basemap(leaflet::providers$OpenTopoMap, group='Topo') +
+  tm_shape(Territory) + tm_sf(border.col="red", alpha=0.1, col="red") +
+  tm_shape(Reserve) + tm_sf(col="red") +
+  tm_shape(Reserve.intersect) + tm_sf("CLI1") 
+```
+
+# 4. Select information from point location
+
+## a) Select territories
+
+Enter a coordinate from google maps: UTM Mississauga campus
+
+
+```{r}
+Coords <- data.frame(lat=43.54859743692376, lon=-79.66263687936457)
+Coords.sf <-st_as_sf(Coords, coords = c("lon","lat"), crs=st_crs(Territories.crop))
+```
+
+Select polygons that contain location
+
+```{r}
+tmp.Territories <- st_join(Coords.sf, Territories.crop)
+tmp.Languages <- st_join(Coords.sf, Languages.crop)
+tmp.Treaties <- st_join(Coords.sf, Treaties.sf)
+```
+
+Display only selected elements: territories
+
+```{r}
+tmp.Territories.poly <- Territories.crop %>% 
+  filter(is.element(Territories.crop$Name, tmp.Territories$Name))
+
+tmap_mode("view")
+tm_basemap(leaflet::providers$OpenTopoMap, group='Topo') +
+  tm_shape(tmp.Territories.poly) + tm_sf("color", alpha=0.5, id="Name") 
+
+```
+
+Languages: by location
+
+```{r}
+tmp.Languages.poly <- Languages.crop %>% 
+  filter(is.element(Languages.crop$Name, tmp.Languages$Name))
+
+tmap_mode("view")
+tm_basemap(leaflet::providers$OpenTopoMap, group='Topo') +
+  tm_shape(tmp.Languages.poly) + tm_sf("color", alpha=0.5, id="Name") 
+
+```
+
+Treaties: by location (does not print on top of each other?)
+
+```{r}
+tmp.Treaties.poly <- Treaties.sf %>% 
+  filter(is.element(Treaties.sf $Name, tmp.Treaties$Name))
+
+tmap_mode("view")
+Map <- tm_basemap(leaflet::providers$OpenTopoMap, group='Topo') +
+  tm_shape(tmp.Treaties.poly) + tm_sf("color", alpha=0.5, id="Name") 
+
+Map
+
+#Map + tm_shape(Coords.sf) + tm_sf("red", size=3)
+
+```
+
+List of territories per location:
+
+```{r}
+tmp.Territories$Name
+```
+
+Notes:
+
+- We may need a look-up table/database with a nested list, e.g., MCFN < Mississaugas < Anishinabek
+- Link to language/cultural groups
+- Link to reserves / FNs
+- Link to treaties
+
+```{r}
+keep <- c(2, 3, 4, 5)
+tmp.Territories$Name[keep]
+```
+
+```{r}
+tmp <- tmp.Territories.poly[keep,] 
+tmp$Area  <- st_area(tmp)
+tmp <- tmp %>% arrange(desc(Area)) # sort by decreasing area to avoid covering of smaller polygons
+
+tmap_mode("view")
+tm_basemap(leaflet::providers$OpenTopoMap, group='Topo') +
+  tm_shape(tmp) + tm_sf("color", alpha=0.5, id="Name", border.col="red") 
+
+```
+
+
+For selecting multiple features of the same/different layer by clicking on a map:
+
+https://gis.stackexchange.com/questions/430074/displaying-pop-ups-for-overlapping-polygons-in-the-same-layer-in-leaflet
+
+
+
+
+
+Example: list of reserves in Ontario
+
+```{r}
+AboriginalLands.sf %>% filter(ALTYPE=="Indian Reserve", JUR1=="ON") %>% 
+  pull(NAME1) %>% unique() %>% sort()
+```
+
+
+```{r}
+Territories.crop$Area <- st_area(Territories.crop)
+
+#View(Territories.crop %>% arrange(desc(Area)))
+```
+
