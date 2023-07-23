@@ -6,7 +6,7 @@ library(sf)
 
 Point=sf::st_as_sf(data.frame(lng=-79.66403, lat=43.54972), 
                    coords = c("lng","lat"), crs=4326)
-Territories.crop <- readRDS(here::here("Output/R_objects/Territories.crop.rds"))
+Territories.crop <- readRDS("Territories.crop.rds")
 
 ui = tagList(
   navbarPage(
