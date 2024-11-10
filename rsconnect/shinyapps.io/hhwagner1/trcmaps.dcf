@@ -1,0 +1,10 @@
+name: trcmaps
+title:
+username: hhwagner1
+account: hhwagner1
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 13284344
+bundleId: 9338085
+url: https://hhwagner1.shinyapps.io/trcmaps/
+version: 1
